@@ -1,32 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+// ignore: depend_on_referenced_packages
 import 'package:http/http.dart' as http;
 
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'To-Do List',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightBlue),
-        scaffoldBackgroundColor: Colors.blue[50],
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.lightBlue,
-          foregroundColor: Colors.white,
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Colors.lightBlue,
-          foregroundColor: Colors.white,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.lightBlue),
-          ),
-          border: OutlineInputBorder(),
-        ),
+        primarySwatch: Colors.deepPurple,
+        scaffoldBackgroundColor: const Color(0xFFF3EDF7),
+        useMaterial3: true,
       ),
       home: const TodoListPage(),
       debugShowCheckedModeBanner: false,
@@ -39,17 +28,13 @@ class Task {
   final String title;
   final String priority;
   final String dueDate;
-  final String createdAt;
-  final String updatedAt;
-  bool isDone;
+  final bool isDone;
 
   Task({
     required this.id,
     required this.title,
     required this.priority,
     required this.dueDate,
-    required this.createdAt,
-    required this.updatedAt,
     required this.isDone,
   });
 
@@ -59,15 +44,14 @@ class Task {
       title: json['title'],
       priority: json['priority'],
       dueDate: json['due_date'],
-      createdAt: json['created_at'],
-      updatedAt: json['updated_at'],
-      isDone: json['is_done'].toString().toLowerCase() == 'true',
+      isDone: json['is_done'] == 'true',
     );
   }
 }
 
 class TodoListPage extends StatefulWidget {
   const TodoListPage({super.key});
+
   @override
   State<TodoListPage> createState() => _TodoListPageState();
 }
@@ -75,7 +59,6 @@ class TodoListPage extends StatefulWidget {
 class _TodoListPageState extends State<TodoListPage> {
   final String baseUrl = 'http://127.0.0.1:8000/api';
   List<Task> tasks = [];
-  String searchQuery = '';
 
   final TextEditingController titleController = TextEditingController();
   String selectedPriority = 'low';
@@ -85,20 +68,6 @@ class _TodoListPageState extends State<TodoListPage> {
   void initState() {
     super.initState();
     fetchTasks();
-  }
-
-  List<Task> getFilteredTasks() {
-    List<Task> filtered = tasks.where((task) {
-      return task.title.toLowerCase().contains(searchQuery.toLowerCase());
-    }).toList();
-
-    filtered.sort((a, b) {
-      DateTime aDate = DateTime.parse(a.dueDate);
-      DateTime bDate = DateTime.parse(b.dueDate);
-      return aDate.compareTo(bDate);
-    });
-
-    return filtered;
   }
 
   Future<void> fetchTasks() async {
@@ -141,66 +110,68 @@ class _TodoListPageState extends State<TodoListPage> {
     fetchTasks();
   }
 
-  Future<void> updateTaskStatus(Task task, bool newStatus) async {
+  Future<void> markTaskAsDone(Task task) async {
     await http.put(Uri.parse('$baseUrl/tasks/${task.id}'), body: {
       'title': task.title,
       'priority': task.priority,
       'due_date': task.dueDate,
-      'is_done': newStatus.toString(),
+      'is_done': 'true',
     });
     fetchTasks();
   }
 
-  String formatDateTime(String raw) {
-    try {
-      final dt = DateTime.parse(raw).toLocal();
-      return '${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year} '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return raw;
-    }
-  }
-
   void showAddDialog() {
+    titleController.clear();
+    selectedPriority = 'low';
+    selectedDate = null;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Tambah Tugas'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Judul'),
-            ),
-            const SizedBox(height: 10),
-            DropdownButton<String>(
-              value: selectedPriority,
-              items: ['low', 'medium', 'high'].map((e) {
-                return DropdownMenuItem(value: e, child: Text(e));
-              }).toList(),
-              onChanged: (val) => setState(() => selectedPriority = val!),
-            ),
-            TextButton(
-              onPressed: () async {
-                DateTime? picked = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2024),
-                  lastDate: DateTime(2030),
-                );
-                if (picked != null) {
-                  setState(() => selectedDate = picked);
-                }
-              },
-              child: Text(selectedDate == null
-                  ? 'Pilih Tanggal'
-                  : selectedDate.toString().split(' ')[0]),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextFormField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Judul'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedPriority,
+                items: ['low', 'medium', 'high'].map((value) {
+                  return DropdownMenuItem(value: value, child: Text(value));
+                }).toList(),
+                onChanged: (value) => setState(() => selectedPriority = value!),
+                decoration: const InputDecoration(labelText: 'Prioritas'),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: () async {
+                  DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now(),
+                    firstDate: DateTime(2024),
+                    lastDate: DateTime(2030),
+                  );
+                  if (picked != null) {
+                    setState(() => selectedDate = picked);
+                  }
+                },
+                icon: const Icon(Icons.calendar_today),
+                label: Text(selectedDate == null
+                    ? 'Pilih Tanggal'
+                    : selectedDate.toString().split(' ')[0]),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
             onPressed: () {
               addTask();
               Navigator.of(ctx).pop();
@@ -221,41 +192,49 @@ class _TodoListPageState extends State<TodoListPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Tugas'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(labelText: 'Judul'),
-            ),
-            const SizedBox(height: 10),
-            DropdownButton<String>(
-              value: selectedPriority,
-              items: ['low', 'medium', 'high'].map((e) {
-                return DropdownMenuItem(value: e, child: Text(e));
-              }).toList(),
-              onChanged: (val) => setState(() => selectedPriority = val!),
-            ),
-            TextButton(
-              onPressed: () async {
-                DateTime? picked = await showDatePicker(
-                  context: context,
-                  initialDate: selectedDate ?? DateTime.now(),
-                  firstDate: DateTime(2024),
-                  lastDate: DateTime(2030),
-                );
-                if (picked != null) {
-                  setState(() => selectedDate = picked);
-                }
-              },
-              child: Text(selectedDate == null
-                  ? 'Pilih Tanggal'
-                  : selectedDate.toString().split(' ')[0]),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextFormField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Judul'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: selectedPriority,
+                items: ['low', 'medium', 'high'].map((value) {
+                  return DropdownMenuItem(value: value, child: Text(value));
+                }).toList(),
+                onChanged: (value) => setState(() => selectedPriority = value!),
+                decoration: const InputDecoration(labelText: 'Prioritas'),
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: () async {
+                  DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate ?? DateTime.now(),
+                    firstDate: DateTime(2024),
+                    lastDate: DateTime(2030),
+                  );
+                  if (picked != null) {
+                    setState(() => selectedDate = picked);
+                  }
+                },
+                icon: const Icon(Icons.calendar_today),
+                label: Text(selectedDate == null
+                    ? 'Pilih Tanggal'
+                    : selectedDate.toString().split(' ')[0]),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
             onPressed: () {
               editTask(task);
               Navigator.of(ctx).pop();
@@ -267,97 +246,105 @@ class _TodoListPageState extends State<TodoListPage> {
     );
   }
 
+  Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'high':
+        return Colors.red;
+      case 'medium':
+        return Colors.orange;
+      case 'low':
+      default:
+        return Colors.green;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filteredTasks = getFilteredTasks();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('To-Do List'),
         centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Cari Tugas',
-                prefixIcon: Icon(Icons.search),
+        padding: const EdgeInsets.all(10.0),
+        child: tasks.isEmpty
+            ? const Center(child: Text('Belum ada tugas.'))
+            : ListView.builder(
+                itemCount: tasks.length,
+                itemBuilder: (ctx, i) {
+                  final task = tasks[i];
+                  return Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Checkbox(
+                            value: task.isDone,
+                            onChanged: (val) {
+                              if (val == true) {
+                                markTaskAsDone(task);
+                              }
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  task.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    decoration: task.isDone
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: _getPriorityColor(task.priority)
+                                        .withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    'Prioritas: ${task.priority}',
+                                    style: TextStyle(
+                                        color:
+                                            _getPriorityColor(task.priority)),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Deadline: ${task.dueDate}',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon:
+                                const Icon(Icons.edit, color: Colors.deepPurple),
+                            onPressed: () => showEditDialog(task),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => deleteTask(task.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-              onChanged: (val) {
-                setState(() {
-                  searchQuery = val;
-                });
-              },
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: tasks.isEmpty
-                  ? const Center(child: Text('Belum ada tugas.'))
-                  : filteredTasks.isEmpty
-                      ? const Center(child: Text('Tidak ada tugas yang cocok.'))
-                      : ListView.builder(
-                          itemCount: filteredTasks.length,
-                          itemBuilder: (ctx, i) {
-                            final task = filteredTasks[i];
-                            return Container(
-                              margin: const EdgeInsets.symmetric(vertical: 4),
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.lightBlue),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Checkbox(
-                                    value: task.isDone,
-                                    activeColor: Colors.lightBlue,
-                                    onChanged: (val) {
-                                      updateTaskStatus(task, !task.isDone);
-                                    },
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          task.title,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            decoration: task.isDone
-                                                ? TextDecoration.lineThrough
-                                                : null,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text('Prioritas: ${task.priority}'),
-                                        Text('Deadline: ${task.dueDate}'),
-                                        Text(
-                                            'Dibuat: ${formatDateTime(task.createdAt)}'),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, size: 18),
-                                    onPressed: () => showEditDialog(task),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, size: 18),
-                                    onPressed: () => deleteTask(task.id),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ],
-        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: showAddDialog,
